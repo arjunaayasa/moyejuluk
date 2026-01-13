@@ -1,0 +1,258 @@
+// Supabase Edge Function for Tripay Payment Gateway
+// Deploy: supabase functions deploy tripay-payment
+// Set secrets: supabase secrets set TRIPAY_API_KEY=xxx TRIPAY_PRIVATE_KEY=xxx TRIPAY_MERCHANT_CODE=xxx
+
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { hmac } from "https://deno.land/x/hmac@v2.0.1/mod.ts"
+
+const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+// Tripay config from environment secrets
+const TRIPAY_API_KEY = Deno.env.get('TRIPAY_API_KEY') || ''
+const TRIPAY_PRIVATE_KEY = Deno.env.get('TRIPAY_PRIVATE_KEY') || ''
+const TRIPAY_MERCHANT_CODE = Deno.env.get('TRIPAY_MERCHANT_CODE') || ''
+const TRIPAY_BASE_URL = Deno.env.get('TRIPAY_BASE_URL') || 'https://tripay.co.id/api-sandbox'
+
+// Supabase client
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+
+serve(async (req) => {
+    // Handle CORS preflight
+    if (req.method === 'OPTIONS') {
+        return new Response('ok', { headers: corsHeaders })
+    }
+
+    try {
+        const url = new URL(req.url)
+        const path = url.pathname.split('/').pop()
+
+        // Initialize Supabase client
+        const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+        // Route handling
+        if (req.method === 'POST' && path === 'create') {
+            return await handleCreatePayment(req, supabase)
+        } else if (req.method === 'GET' && path === 'status') {
+            return await handleCheckStatus(req)
+        } else if (req.method === 'POST' && path === 'callback') {
+            return await handleWebhook(req, supabase)
+        }
+
+        return new Response(
+            JSON.stringify({ error: 'Not found' }),
+            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+    } catch (error) {
+        console.error('Edge function error:', error)
+        return new Response(
+            JSON.stringify({ error: error.message }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+    }
+})
+
+// Create QRIS Payment
+async function handleCreatePayment(req: Request, supabase: any) {
+    const { userId, email } = await req.json()
+
+    if (!userId || !email) {
+        return new Response(
+            JSON.stringify({ success: false, error: 'Missing userId or email' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+    }
+
+    const merchantRef = `MJL-${Date.now()}-${userId.slice(0, 8)}`
+    const amount = 10000 // Rp 10.000
+
+    // Generate signature
+    const signature = generateSignature(merchantRef, amount)
+
+    // Create transaction in database first
+    const { error: dbError } = await supabase
+        .from('transactions')
+        .insert([{
+            user_id: userId,
+            reference: merchantRef,
+            amount: amount,
+            status: 'PENDING',
+            payment_method: 'QRIS',
+        }])
+
+    if (dbError) {
+        console.error('DB insert error:', dbError)
+        return new Response(
+            JSON.stringify({ success: false, error: 'Failed to create transaction record' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+    }
+
+    // Call Tripay API
+    const payload = {
+        method: 'QRIS',
+        merchant_ref: merchantRef,
+        amount: amount,
+        customer_name: email.split('@')[0],
+        customer_email: email,
+        order_items: [{
+            sku: 'SUB-MONTHLY',
+            name: 'Moyejuluk Premium 1 Bulan',
+            price: amount,
+            quantity: 1,
+        }],
+        expired_time: Math.floor(Date.now() / 1000) + (24 * 60 * 60), // 24 hours
+        signature: signature,
+    }
+
+    const response = await fetch(`${TRIPAY_BASE_URL}/transaction/create`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${TRIPAY_API_KEY}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+    })
+
+    const result = await response.json()
+
+    if (result.success) {
+        return new Response(
+            JSON.stringify({
+                success: true,
+                reference: merchantRef,
+                qrUrl: result.data.qr_url || result.data.qr_string,
+                checkoutUrl: result.data.checkout_url,
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+    } else {
+        // Update transaction status to FAILED
+        await supabase
+            .from('transactions')
+            .update({ status: 'FAILED' })
+            .eq('reference', merchantRef)
+
+        return new Response(
+            JSON.stringify({ success: false, error: result.message || 'Failed to create payment' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+    }
+}
+
+// Check transaction status
+async function handleCheckStatus(req: Request) {
+    const url = new URL(req.url)
+    const reference = url.searchParams.get('reference')
+
+    if (!reference) {
+        return new Response(
+            JSON.stringify({ success: false, error: 'Missing reference' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+    }
+
+    const response = await fetch(
+        `${TRIPAY_BASE_URL}/transaction/detail?reference=${reference}`,
+        {
+            headers: {
+                'Authorization': `Bearer ${TRIPAY_API_KEY}`,
+            },
+        }
+    )
+
+    const result = await response.json()
+
+    if (result.success) {
+        return new Response(
+            JSON.stringify({
+                success: true,
+                status: result.data.status,
+                paidAt: result.data.paid_at,
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+    } else {
+        return new Response(
+            JSON.stringify({ success: false, error: result.message }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+    }
+}
+
+// Handle Tripay Webhook/Callback
+async function handleWebhook(req: Request, supabase: any) {
+    const body = await req.json()
+
+    // Verify callback signature
+    const callbackSignature = req.headers.get('X-Callback-Signature')
+    const expectedSignature = generateCallbackSignature(JSON.stringify(body))
+
+    if (callbackSignature !== expectedSignature) {
+        console.error('Invalid callback signature')
+        return new Response(
+            JSON.stringify({ success: false, error: 'Invalid signature' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+    }
+
+    const { merchant_ref, status } = body
+
+    // Update transaction status
+    const { error: txError } = await supabase
+        .from('transactions')
+        .update({
+            status: status,
+            paid_at: status === 'PAID' ? new Date().toISOString() : null
+        })
+        .eq('reference', merchant_ref)
+
+    if (txError) {
+        console.error('Failed to update transaction:', txError)
+    }
+
+    // If payment is successful, update user subscription
+    if (status === 'PAID') {
+        // Get user_id from transaction
+        const { data: tx } = await supabase
+            .from('transactions')
+            .select('user_id')
+            .eq('reference', merchant_ref)
+            .single()
+
+        if (tx) {
+            const expiresAt = new Date()
+            expiresAt.setMonth(expiresAt.getMonth() + 1) // 1 month subscription
+
+            await supabase
+                .from('profiles')
+                .update({
+                    subscription_status: 'active',
+                    subscription_expires_at: expiresAt.toISOString(),
+                })
+                .eq('id', tx.user_id)
+        }
+    }
+
+    return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+}
+
+// Generate signature for create transaction
+function generateSignature(merchantRef: string, amount: number): string {
+    const data = TRIPAY_MERCHANT_CODE + merchantRef + amount
+    const signature = hmac('sha256', TRIPAY_PRIVATE_KEY, data, 'utf8', 'hex')
+    return signature as string
+}
+
+// Generate signature for callback verification
+function generateCallbackSignature(payload: string): string {
+    const signature = hmac('sha256', TRIPAY_PRIVATE_KEY, payload, 'utf8', 'hex')
+    return signature as string
+}
