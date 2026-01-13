@@ -94,28 +94,7 @@
       </div>
     </section>
 
-    <!-- Anime Terbaru -->
-    <section class="content-section">
-      <div class="section-header">
-        <h2 class="section-title">Anime Terbaru</h2>
-        <router-link to="/anime" class="see-all">Lihat Semua</router-link>
-      </div>
-      <div class="horizontal-scroll" v-if="!loading.anime">
-        <div class="scroll-spacer"></div>
-        <ContentCard
-          v-for="item in animeLatest.slice(0, 12)"
-          :key="item.url || item.id"
-          :to="`/anime/${encodeURIComponent(item.url || item.id)}`"
-          :poster="item.cover || item.poster"
-          :title="item.judul || item.title"
-          :episode="item.lastch || item.episode"
-        />
-      </div>
-      <div class="horizontal-scroll" v-else>
-        <div class="scroll-spacer"></div>
-        <div v-for="i in 5" :key="i" class="skeleton card-skeleton"></div>
-      </div>
-    </section>
+
 
     <!-- Komik Populer -->
     <section class="content-section">
@@ -144,19 +123,18 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
-import { dramabox, anime, komik } from '../api';
+import { dramabox, komik } from '../api';
 import ContentCard from '../components/ContentCard.vue';
 
 const featuredDramas = ref([]);
 const dramaTrending = ref([]);
-const animeLatest = ref([]);
+
 const komikPopular = ref([]);
 const currentSlide = ref(0);
 let slideInterval = null;
 
 const loading = ref({
   drama: true,
-  anime: true,
   komik: true,
 });
 
@@ -196,15 +174,7 @@ onMounted(async () => {
     loading.value.drama = false;
   }
 
-  // Load Anime from Sansekai
-  try {
-    const animeRes = await anime.latest();
-    animeLatest.value = animeRes?.data || animeRes || [];
-  } catch (e) {
-    console.error('Anime error:', e);
-  } finally {
-    loading.value.anime = false;
-  }
+
 
   // Load Komik from Sansekai
   try {

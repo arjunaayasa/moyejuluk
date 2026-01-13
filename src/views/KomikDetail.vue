@@ -15,29 +15,29 @@
     <template v-else-if="data">
       <div class="detail-hero">
         <img 
-          v-if="data.cover || data.image" 
-          :src="data.cover || data.image" 
+          v-if="posterUrl" 
+          :src="posterUrl" 
           :alt="data.title"
           class="hero-poster"
         />
         <div class="hero-info">
           <h2 class="hero-title">{{ data.title }}</h2>
-          <p v-if="data.type" class="hero-badge">{{ data.type }}</p>
-          <p v-if="data.status" class="hero-meta">{{ data.status }}</p>
-          <p v-if="data.author" class="hero-meta">{{ data.author }}</p>
+          <p v-if="data.status" class="hero-badge">{{ data.status === 1 ? 'Ongoing' : 'Completed' }}</p>
+          <p v-if="data.user_rate" class="hero-meta"><svg class="meta-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> {{ data.user_rate }}</p>
+          <p v-if="data.view_count" class="hero-meta"><svg class="meta-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> {{ formatNumber(data.view_count) }} views</p>
         </div>
       </div>
 
-      <section class="detail-section" v-if="data.synopsis || data.description">
+      <section class="detail-section" v-if="data.description">
         <h3>Sinopsis</h3>
-        <p class="synopsis">{{ data.synopsis || data.description }}</p>
+        <p class="synopsis">{{ data.description }}</p>
       </section>
 
-      <section class="detail-section" v-if="data.genres && data.genres.length">
+      <section class="detail-section" v-if="genreList.length > 0">
         <h3>Genre</h3>
         <div class="genre-list">
-          <span v-for="genre in data.genres" :key="genre" class="genre-tag">
-            {{ genre.name || genre }}
+          <span v-for="genre in genreList" :key="genre" class="genre-tag">
+            {{ genre }}
           </span>
         </div>
       </section>
@@ -47,19 +47,19 @@
         <div class="chapter-list">
           <router-link
             v-for="ch in chapters"
-            :key="ch.chapter_id || ch.slug"
-            :to="`/read/${id}/${encodeURIComponent(ch.chapter_id || ch.slug)}`"
+            :key="ch.chapter_id"
+            :to="`/read/${id}/${encodeURIComponent(ch.chapter_id)}`"
             class="chapter-item"
           >
-            <span class="ch-title">{{ ch.chapter || ch.title }}</span>
-            <span class="ch-date">{{ ch.date || '' }}</span>
+            <span class="ch-title">Chapter {{ ch.chapter_title || getChapterNumber(ch) }}</span>
+            <span class="ch-date">{{ formatDate(ch.release_date) }}</span>
           </router-link>
         </div>
       </section>
 
       <div class="action-bar" v-if="chapters.length > 0">
         <router-link 
-          :to="`/read/${id}/${encodeURIComponent(chapters[chapters.length - 1].chapter_id || chapters[chapters.length - 1].slug || '')}`" 
+          :to="`/read/${id}/${encodeURIComponent(chapters[chapters.length - 1].chapter_id)}`" 
           class="read-btn"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -74,7 +74,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { komik } from '../api';
 import Loading from '../components/Loading.vue';
@@ -88,6 +88,41 @@ const data = ref(null);
 const chapters = ref([]);
 const loading = ref(true);
 const error = ref('');
+
+// Computed properties
+const posterUrl = computed(() => {
+  if (!data.value) return '';
+  // Cover might be a full URL or need base URL
+  const cover = data.value.cover || data.value.image || '';
+  if (cover.startsWith('http')) return cover;
+  return cover ? `https://assets.shngm.id/thumbnail/image/${cover}` : '';
+});
+
+const genreList = computed(() => {
+  if (!data.value?.taxonomy?.Genre) return [];
+  return data.value.taxonomy.Genre.map(g => g.name || g);
+});
+
+// Helper functions
+const formatNumber = (num) => {
+  if (!num) return '0';
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+  if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+  return num.toString();
+};
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+};
+
+const getChapterNumber = (ch) => {
+  // Extract chapter number from chapter_id or index
+  if (ch.chapter_number) return ch.chapter_number;
+  const idx = chapters.value.indexOf(ch);
+  return chapters.value.length - idx;
+};
 
 const loadData = async () => {
   loading.value = true;

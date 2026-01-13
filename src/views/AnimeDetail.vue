@@ -24,7 +24,7 @@
           <h2 class="hero-title">{{ data.judul || data.title }}</h2>
           <p v-if="data.status" class="hero-badge">{{ data.status }}</p>
           <p v-if="data.type" class="hero-meta">{{ data.type }}</p>
-          <p v-if="data.rating" class="hero-meta">⭐ {{ data.rating }}</p>
+          <p v-if="data.rating" class="hero-meta"><svg class="meta-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> {{ data.rating }}</p>
         </div>
       </div>
 
@@ -36,7 +36,7 @@
       <section class="detail-section" v-if="data.genre">
         <h3>Genre</h3>
         <div class="genre-list">
-          <span v-for="(genre, idx) in data.genre.split(', ')" :key="idx" class="genre-tag">
+          <span v-for="(genre, idx) in genreList" :key="idx" class="genre-tag">
             {{ genre }}
           </span>
         </div>
@@ -73,7 +73,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { anime } from '../api';
 import Loading from '../components/Loading.vue';
@@ -87,6 +87,18 @@ const data = ref(null);
 const episodes = ref([]);
 const loading = ref(true);
 const error = ref('');
+
+// Handle genre as string or array
+const genreList = computed(() => {
+  if (!data.value?.genre) return [];
+  if (typeof data.value.genre === 'string') {
+    return data.value.genre.split(', ');
+  }
+  if (Array.isArray(data.value.genre)) {
+    return data.value.genre;
+  }
+  return [];
+});
 
 const loadData = async () => {
   loading.value = true;

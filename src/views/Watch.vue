@@ -14,6 +14,22 @@
     <div class="player-container">
       <Loading v-if="loading" />
       <ErrorState v-else-if="error" :message="error" @retry="loadVideo" />
+      
+      <!-- Locked Content -->
+      <div v-else-if="isLocked" class="locked-content">
+        <div class="lock-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </div>
+        <h3>Konten Terkunci</h3>
+        <p>Trial gratis kamu sudah habis. Berlangganan untuk melanjutkan menonton.</p>
+        <button class="subscribe-btn" @click="showPaywall">
+          Berlangganan Rp 10.000/bulan
+        </button>
+      </div>
+      
       <video
         v-else-if="videoUrl"
         ref="videoRef"
@@ -83,14 +99,25 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, inject } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { dramabox, shortmax, melolo, flickreels, netshort, radreel, meloshort, anime } from '../api';
 import Loading from '../components/Loading.vue';
 import ErrorState from '../components/ErrorState.vue';
+import { useSubscription } from '../composables/useSubscription';
 
 const route = useRoute();
 const router = useRouter();
+
+// Subscription check
+const { canWatchDrama, incrementDramaTrial, isSubscribed } = useSubscription();
+const showPaywallFn = inject('showPaywall', () => {});
+const isLocked = ref(false);
+const trialCounted = ref(false);
+
+const showPaywall = () => {
+  showPaywallFn();
+};
 
 const source = computed(() => route.params.source);
 const id = computed(() => route.params.id);
@@ -129,12 +156,14 @@ const selectChapter = (ch, idx) => {
   const chapterIndex = ch.chapterIndex ?? idx;
   currentChapterIndex.value = chapterIndex;
   currentEpisode.value = String(chapterIndex + 1);
+  trialCounted.value = false; // Reset so new episode counts as new trial
   router.replace(`/watch/${source.value}/${id.value}/${chapterIndex}`);
   loadVideo();
 };
 
 const selectEpisode = (ep) => {
   currentEpisode.value = String(ep);
+  trialCounted.value = false; // Reset so new episode counts as new trial
   router.replace(`/watch/${source.value}/${id.value}/${ep}`);
   loadVideo();
 };
@@ -147,6 +176,14 @@ const loadVideo = async () => {
   loading.value = true;
   error.value = '';
   videoUrl.value = '';
+  isLocked.value = false;
+
+  // Check subscription for drama (not anime)
+  if (source.value !== 'anime' && !canWatchDrama.value) {
+    isLocked.value = true;
+    loading.value = false;
+    return;
+  }
 
   const epIndex = parseInt(episodeParam.value) || 0; // 0-based (for DramaBox, RadReel)
   const epNumber = epIndex + 1; // 1-based (for ShortMax, MeloShort, NetShort)
@@ -296,6 +333,10 @@ const loadVideo = async () => {
     
     if (!videoUrl.value) {
       error.value = 'Video URL tidak ditemukan';
+    } else if (source.value !== 'anime' && !isSubscribed.value && !trialCounted.value) {
+      // Increment trial count on successful video load
+      await incrementDramaTrial();
+      trialCounted.value = true;
     }
     
   } catch (e) {
@@ -469,5 +510,51 @@ watch(() => route.params.episode, (newEp) => {
 .reso-btn.active {
   background: var(--accent);
   color: white;
+}
+
+/* Locked Content */
+.locked-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-xl);
+  color: var(--text-primary);
+}
+
+.locked-content .lock-icon {
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 107, 53, 0.1);
+  border-radius: 50%;
+  margin-bottom: var(--space-md);
+  color: var(--accent);
+}
+
+.locked-content h3 {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  margin-bottom: var(--space-sm);
+}
+
+.locked-content p {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  max-width: 280px;
+  margin-bottom: var(--space-lg);
+}
+
+.locked-content .subscribe-btn {
+  padding: var(--space-md) var(--space-xl);
+  background: linear-gradient(135deg, var(--accent), #ff9966);
+  color: white;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
 }
 </style>

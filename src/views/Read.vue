@@ -17,6 +17,21 @@
     <Loading v-if="loading" />
     <ErrorState v-else-if="error" :message="error" @retry="loadChapter" />
 
+    <!-- Locked Content -->
+    <div v-else-if="isLocked" class="locked-content">
+      <div class="lock-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+      </div>
+      <h3>Konten Terkunci</h3>
+      <p>Trial gratis kamu sudah habis. Berlangganan untuk melanjutkan membaca.</p>
+      <button class="subscribe-btn" @click="showPaywall">
+        Berlangganan Rp 10.000/bulan
+      </button>
+    </div>
+
     <!-- Reader -->
     <div 
       v-else
@@ -64,11 +79,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, inject } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { komik } from '../api';
 import Loading from '../components/Loading.vue';
 import ErrorState from '../components/ErrorState.vue';
+import { useSubscription } from '../composables/useSubscription';
 
 const props = defineProps({
   id: String,
@@ -77,6 +93,16 @@ const props = defineProps({
 
 const route = useRoute();
 const router = useRouter();
+
+// Subscription check
+const { canReadKomik, incrementKomikTrial, isSubscribed } = useSubscription();
+const showPaywallFn = inject('showPaywall', () => {});
+const isLocked = ref(false);
+const trialCounted = ref(false);
+
+const showPaywall = () => {
+  showPaywallFn();
+};
 
 const mangaId = props.id || route.params.id;
 const chapterId = ref(props.chapter || route.params.chapter);
@@ -126,11 +152,25 @@ const loadChapter = async () => {
   loading.value = true;
   error.value = '';
   images.value = [];
+  isLocked.value = false;
+
+  // Check subscription before loading
+  if (!canReadKomik.value) {
+    isLocked.value = true;
+    loading.value = false;
+    return;
+  }
 
   try {
     // Get chapter images
     const imgRes = await komik.getImages(chapterId.value);
-    images.value = imgRes.data || imgRes || [];
+    // Images are in data.chapter.data array
+    const imgData = imgRes?.data?.chapter?.data || imgRes?.data || imgRes || [];
+    images.value = Array.isArray(imgData) ? imgData : [];
+    
+    // Get chapter info for title
+    const chapterInfo = imgRes?.data;
+    chapterTitle.value = `Chapter ${chapterInfo?.chapter_number || chapterInfo?.chapter_title || ''}`;
     
     // Get chapter list for navigation
     if (chapters.value.length === 0) {
@@ -138,11 +178,11 @@ const loadChapter = async () => {
       chapters.value = chRes.data || chRes || [];
     }
 
-    // Find current chapter title
-    const current = chapters.value.find(ch => 
-      String(ch.chapter_id || ch.slug) === String(chapterId.value)
-    );
-    chapterTitle.value = current?.chapter || current?.title || `Chapter`;
+    // Increment trial count on successful load
+    if (!isSubscribed.value && !trialCounted.value && images.value.length > 0) {
+      await incrementKomikTrial();
+      trialCounted.value = true;
+    }
     
   } catch (e) {
     error.value = 'Gagal memuat chapter.';
@@ -262,5 +302,53 @@ onMounted(loadChapter);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Locked Content */
+.locked-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-xl);
+  min-height: 60vh;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+}
+
+.locked-content .lock-icon {
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 107, 53, 0.1);
+  border-radius: 50%;
+  margin-bottom: var(--space-md);
+  color: var(--accent);
+}
+
+.locked-content h3 {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  margin-bottom: var(--space-sm);
+}
+
+.locked-content p {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  max-width: 280px;
+  margin-bottom: var(--space-lg);
+}
+
+.locked-content .subscribe-btn {
+  padding: var(--space-md) var(--space-xl);
+  background: linear-gradient(135deg, var(--accent), #ff9966);
+  color: white;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
 }
 </style>
