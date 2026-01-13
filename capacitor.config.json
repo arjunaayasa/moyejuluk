@@ -1,0 +1,8 @@
+{
+    "appId": "com.moyejuluk.app",
+    "appName": "Moyejuluk!",
+    "webDir": "dist",
+    "server": {
+        "androidScheme": "https"
+    }
+}
