@@ -101,7 +101,7 @@ async function handleCreatePayment(body: any, supabase: any) {
     if (!userId || !email) {
         return new Response(
             JSON.stringify({ success: false, error: 'Missing userId or email' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
     }
 
@@ -126,7 +126,7 @@ async function handleCreatePayment(body: any, supabase: any) {
         console.error('DB insert error:', dbError)
         return new Response(
             JSON.stringify({ success: false, error: `Failed to create transaction: ${dbError.message}` }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
     }
 
@@ -178,7 +178,7 @@ async function handleCreatePayment(body: any, supabase: any) {
 
         return new Response(
             JSON.stringify({ success: false, error: result.message || 'Failed to create payment' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
     }
 }
@@ -190,7 +190,7 @@ async function handleCheckStatus(body: any) {
     if (!reference) {
         return new Response(
             JSON.stringify({ success: false, error: 'Missing reference' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
     }
 
