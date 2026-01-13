@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Moyejuluk!</string>
+    <string name="title_activity_main">Moyejuluk!</string>
+    <string name="package_name">com.moyejuluk.app</string>
+    <string name="custom_url_scheme">com.moyejuluk.app</string>
+</resources>
