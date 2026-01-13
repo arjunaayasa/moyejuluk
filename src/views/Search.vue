@@ -120,7 +120,10 @@ const doSearch = async () => {
         res = await komik.search(query.value);
         break;
     }
-    results.value = res.data || res || [];
+    // Handle different API response structures
+    const data = res?.data?.list || res?.data || res?.list || res || [];
+    results.value = Array.isArray(data) ? data : [];
+    console.log('Search results:', results.value);
   } catch (e) {
     error.value = 'Gagal mencari. Silakan coba lagi.';
     console.error(e);
