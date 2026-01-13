@@ -102,7 +102,7 @@ const handleLogin = async () => {
 
 .auth-container {
   width: 100%;
-  max-width: 400px;
+  max-width: 380px;
   z-index: 1;
 }
 
@@ -112,25 +112,31 @@ const handleLogin = async () => {
 }
 
 .auth-logo h1 {
-  font-size: 2rem;
-  font-weight: 700;
+  font-size: 2.5rem;
+  font-weight: 800;
   background: linear-gradient(135deg, var(--accent), #ff9966);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  letter-spacing: -0.02em;
 }
 
 .auth-logo p {
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.5);
   font-size: var(--font-size-sm);
   margin-top: var(--space-xs);
 }
 
 .auth-form {
-  background: var(--bg-card);
+  background: rgba(30, 30, 30, 0.4);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
   padding: var(--space-xl);
-  border-radius: var(--radius-lg);
+  border-radius: 24px;
   border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .auth-form h2 {
@@ -138,6 +144,7 @@ const handleLogin = async () => {
   font-weight: 600;
   margin-bottom: var(--space-lg);
   text-align: center;
+  color: white;
 }
 
 .form-group {
@@ -147,17 +154,18 @@ const handleLogin = async () => {
 .form-group label {
   display: block;
   font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-  margin-bottom: var(--space-xs);
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 8px;
+  font-weight: 500;
 }
 
 .form-group input {
   width: 100%;
-  padding: var(--space-md);
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--radius-md);
-  color: var(--text-primary);
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  color: white;
   font-size: var(--font-size-base);
   transition: all 0.2s ease;
 }
@@ -165,11 +173,12 @@ const handleLogin = async () => {
 .form-group input:focus {
   outline: none;
   border-color: var(--accent);
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.15);
 }
 
 .form-group input::placeholder {
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.3);
 }
 
 .error-msg {
@@ -177,24 +186,28 @@ const handleLogin = async () => {
   font-size: var(--font-size-sm);
   margin-bottom: var(--space-md);
   text-align: center;
+  padding: 10px;
+  background: rgba(255, 107, 107, 0.1);
+  border-radius: 8px;
 }
 
 .auth-btn {
   width: 100%;
-  padding: var(--space-md);
+  padding: 14px;
   background: linear-gradient(135deg, var(--accent), #ff9966);
   color: white;
   font-size: var(--font-size-base);
   font-weight: 600;
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: 12px;
   cursor: pointer;
   transition: all 0.3s ease;
+  margin-top: var(--space-sm);
 }
 
 .auth-btn:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 10px 30px rgba(255, 107, 53, 0.3);
+  box-shadow: 0 10px 30px rgba(255, 107, 53, 0.4);
 }
 
 .auth-btn:disabled {
@@ -204,18 +217,24 @@ const handleLogin = async () => {
 
 .auth-footer {
   text-align: center;
-  margin-top: var(--space-lg);
+  margin-top: var(--space-xl);
 }
 
 .auth-footer p {
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.5);
   font-size: var(--font-size-sm);
+  margin-bottom: 4px;
 }
 
 .auth-footer .link {
   color: var(--accent);
   text-decoration: none;
-  font-weight: 500;
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+}
+
+.auth-footer .link:hover {
+  text-decoration: underline;
 }
 
 /* Background decoration */
@@ -223,28 +242,35 @@ const handleLogin = async () => {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  overflow: hidden;
 }
 
 .gradient-orb {
   position: absolute;
   border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.4;
+  filter: blur(100px);
 }
 
 .orb-1 {
-  width: 300px;
-  height: 300px;
-  background: var(--accent);
-  top: -100px;
-  right: -100px;
+  width: 400px;
+  height: 400px;
+  background: rgba(255, 107, 53, 0.3);
+  top: -150px;
+  right: -150px;
+  animation: float 8s ease-in-out infinite;
 }
 
 .orb-2 {
-  width: 250px;
-  height: 250px;
-  background: #8b5cf6;
-  bottom: -100px;
-  left: -100px;
+  width: 350px;
+  height: 350px;
+  background: rgba(139, 92, 246, 0.25);
+  bottom: -150px;
+  left: -150px;
+  animation: float 8s ease-in-out infinite 2s;
+}
+
+@keyframes float {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(20px, -20px); }
 }
 </style>

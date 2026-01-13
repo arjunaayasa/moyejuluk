@@ -197,7 +197,7 @@ onUnmounted(() => {
 .hero-section {
   position: relative;
   width: 100%;
-  height: 300px;
+  height: 420px;
   overflow: hidden;
   margin-bottom: var(--space-lg);
 }
@@ -228,9 +228,19 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   background-size: cover;
-  background-position: center top;
+  background-position: center center;
   opacity: 0;
   transition: opacity 0.6s ease;
+}
+
+.hero-slide::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 30px;
+  background: var(--bg-primary);
 }
 
 .hero-slide.active {
@@ -242,15 +252,16 @@ onUnmounted(() => {
   inset: 0;
   background: linear-gradient(
     to bottom,
-    rgba(13, 13, 13, 0.3) 0%,
-    rgba(13, 13, 13, 0.6) 50%,
-    rgba(13, 13, 13, 1) 100%
+    rgba(13, 13, 13, 0.2) 0%,
+    rgba(13, 13, 13, 0.4) 40%,
+    rgba(13, 13, 13, 0.8) 70%,
+    rgba(13, 13, 13, 1) 85%
   );
 }
 
 .hero-content {
   position: absolute;
-  bottom: 40px;
+  bottom: 50px;
   left: var(--space-md);
   right: var(--space-md);
   z-index: 2;
@@ -433,7 +444,7 @@ onUnmounted(() => {
 /* Responsive */
 @media (min-width: 768px) {
   .hero-section {
-    height: 400px;
+    height: 520px;
   }
   
   .hero-title {

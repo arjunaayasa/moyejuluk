@@ -42,8 +42,13 @@ const navItems = [
   },
   { 
     path: '/search', 
-    label: 'Search',
+    label: 'Cari',
     icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`
+  },
+  { 
+    path: '/account', 
+    label: 'Akun',
+    icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`
   },
 ];
 
@@ -56,33 +61,46 @@ const isActive = (path) => {
 <style scoped>
 .navbar {
   position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: var(--navbar-height);
-  background: var(--bg-secondary);
-  border-top: 1px solid var(--border);
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 60px;
+  background: rgba(20, 20, 20, 0.35);
+  backdrop-filter: blur(30px) saturate(150%);
+  -webkit-backdrop-filter: blur(30px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 30px;
   display: flex;
-  justify-content: space-around;
+  justify-content: center;
   align-items: center;
-  padding-bottom: var(--safe-area-bottom);
+  padding: 0 6px;
+  gap: 2px;
   z-index: 100;
+  box-shadow: 
+    0 4px 24px rgba(0, 0, 0, 0.25),
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.08);
 }
 
 .nav-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: var(--space-sm) var(--space-md);
-  color: var(--text-secondary);
-  transition: color var(--transition-fast);
+  gap: 2px;
+  padding: 8px 12px;
+  color: rgba(255, 255, 255, 0.5);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   text-decoration: none;
+  border-radius: 20px;
+  position: relative;
 }
 
-.nav-item:hover,
+.nav-item:hover {
+  color: rgba(255, 255, 255, 0.8);
+}
+
 .nav-item.active {
-  color: var(--accent);
+  background: rgba(255, 107, 53, 0.15);
+  color: #ff6b35;
 }
 
 .nav-icon {
@@ -92,7 +110,8 @@ const isActive = (path) => {
 }
 
 .nav-label {
-  font-size: var(--font-size-xs);
-  font-weight: 500;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 </style>

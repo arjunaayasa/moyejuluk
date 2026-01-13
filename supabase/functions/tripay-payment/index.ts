@@ -4,7 +4,26 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
-import { hmac } from "https://deno.land/x/hmac@v2.0.1/mod.ts"
+
+// HMAC-SHA256 using Web Crypto API
+async function hmacSha256(key: string, data: string): Promise<string> {
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(key);
+    const dataBytes = encoder.encode(data);
+
+    const cryptoKey = await crypto.subtle.importKey(
+        "raw",
+        keyData,
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"]
+    );
+
+    const signature = await crypto.subtle.sign("HMAC", cryptoKey, dataBytes);
+    const hashArray = Array.from(new Uint8Array(signature));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return hashHex;
+}
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -28,24 +47,43 @@ serve(async (req) => {
     }
 
     try {
-        const url = new URL(req.url)
-        const path = url.pathname.split('/').pop()
-
         // Initialize Supabase client
         const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-        // Route handling
-        if (req.method === 'POST' && path === 'create') {
-            return await handleCreatePayment(req, supabase)
-        } else if (req.method === 'GET' && path === 'status') {
-            return await handleCheckStatus(req)
-        } else if (req.method === 'POST' && path === 'callback') {
-            return await handleWebhook(req, supabase)
+        // Check if this is a Tripay callback (via header or URL path)
+        const callbackEvent = req.headers.get('X-Callback-Event')
+        const url = new URL(req.url)
+        const pathEndsWithCallback = url.pathname.endsWith('/callback')
+
+        // Clone body text for signature verification
+        const bodyText = await req.text()
+        let body: any = {}
+
+        try {
+            body = JSON.parse(bodyText)
+        } catch {
+            body = {}
+        }
+
+        // If Tripay callback detected
+        if (callbackEvent || pathEndsWithCallback) {
+            return await handleWebhook(body, bodyText, req, supabase)
+        }
+
+        // Route handling based on action (internal API calls)
+        const action = body.action || ''
+
+        if (action === 'create') {
+            return await handleCreatePayment(body, supabase)
+        } else if (action === 'status') {
+            return await handleCheckStatus(body)
+        } else if (action === 'callback') {
+            return await handleWebhook(body, bodyText, req, supabase)
         }
 
         return new Response(
-            JSON.stringify({ error: 'Not found' }),
-            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            JSON.stringify({ error: 'Invalid action. Use: create, status, or callback' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
     } catch (error) {
         console.error('Edge function error:', error)
@@ -57,8 +95,8 @@ serve(async (req) => {
 })
 
 // Create QRIS Payment
-async function handleCreatePayment(req: Request, supabase: any) {
-    const { userId, email } = await req.json()
+async function handleCreatePayment(body: any, supabase: any) {
+    const { userId, email } = body
 
     if (!userId || !email) {
         return new Response(
@@ -71,7 +109,7 @@ async function handleCreatePayment(req: Request, supabase: any) {
     const amount = 10000 // Rp 10.000
 
     // Generate signature
-    const signature = generateSignature(merchantRef, amount)
+    const signature = await generateSignature(merchantRef, amount)
 
     // Create transaction in database first
     const { error: dbError } = await supabase
@@ -87,7 +125,7 @@ async function handleCreatePayment(req: Request, supabase: any) {
     if (dbError) {
         console.error('DB insert error:', dbError)
         return new Response(
-            JSON.stringify({ success: false, error: 'Failed to create transaction record' }),
+            JSON.stringify({ success: false, error: `Failed to create transaction: ${dbError.message}` }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
     }
@@ -124,7 +162,8 @@ async function handleCreatePayment(req: Request, supabase: any) {
         return new Response(
             JSON.stringify({
                 success: true,
-                reference: merchantRef,
+                reference: result.data.reference, // Use Tripay's reference, not merchantRef
+                merchantRef: merchantRef,
                 qrUrl: result.data.qr_url || result.data.qr_string,
                 checkoutUrl: result.data.checkout_url,
             }),
@@ -145,9 +184,8 @@ async function handleCreatePayment(req: Request, supabase: any) {
 }
 
 // Check transaction status
-async function handleCheckStatus(req: Request) {
-    const url = new URL(req.url)
-    const reference = url.searchParams.get('reference')
+async function handleCheckStatus(body: any) {
+    const reference = body.reference
 
     if (!reference) {
         return new Response(
@@ -177,23 +215,22 @@ async function handleCheckStatus(req: Request) {
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
     } else {
+        // Return 200 with success:false so frontend doesn't throw
         return new Response(
-            JSON.stringify({ success: false, error: result.message }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            JSON.stringify({ success: false, error: result.message, status: 'ERROR' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
     }
 }
 
 // Handle Tripay Webhook/Callback
-async function handleWebhook(req: Request, supabase: any) {
-    const body = await req.json()
-
-    // Verify callback signature
+async function handleWebhook(body: any, bodyText: string, req: Request, supabase: any) {
+    // Verify callback signature using original body text
     const callbackSignature = req.headers.get('X-Callback-Signature')
-    const expectedSignature = generateCallbackSignature(JSON.stringify(body))
+    const expectedSignature = await generateCallbackSignature(bodyText)
 
     if (callbackSignature !== expectedSignature) {
-        console.error('Invalid callback signature')
+        console.error('Invalid callback signature. Expected:', expectedSignature, 'Got:', callbackSignature)
         return new Response(
             JSON.stringify({ success: false, error: 'Invalid signature' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -245,14 +282,12 @@ async function handleWebhook(req: Request, supabase: any) {
 }
 
 // Generate signature for create transaction
-function generateSignature(merchantRef: string, amount: number): string {
+async function generateSignature(merchantRef: string, amount: number): Promise<string> {
     const data = TRIPAY_MERCHANT_CODE + merchantRef + amount
-    const signature = hmac('sha256', TRIPAY_PRIVATE_KEY, data, 'utf8', 'hex')
-    return signature as string
+    return await hmacSha256(TRIPAY_PRIVATE_KEY, data)
 }
 
 // Generate signature for callback verification
-function generateCallbackSignature(payload: string): string {
-    const signature = hmac('sha256', TRIPAY_PRIVATE_KEY, payload, 'utf8', 'hex')
-    return signature as string
+async function generateCallbackSignature(payload: string): Promise<string> {
+    return await hmacSha256(TRIPAY_PRIVATE_KEY, payload)
 }

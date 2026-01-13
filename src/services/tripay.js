@@ -4,8 +4,21 @@ import { supabase } from '../supabase';
 // Create QRIS Payment via Edge Function
 export async function createQrisPayment(userId, email) {
     try {
-        const { data, error } = await supabase.functions.invoke('tripay-payment/create', {
-            body: { userId, email }
+        // Get current session for auth
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (!session) {
+            return {
+                success: false,
+                error: 'User not authenticated',
+            };
+        }
+
+        const { data, error } = await supabase.functions.invoke('tripay-payment', {
+            body: { action: 'create', userId, email },
+            headers: {
+                Authorization: `Bearer ${session.access_token}`,
+            },
         });
 
         if (error) throw new Error(error.message);
@@ -23,8 +36,21 @@ export async function createQrisPayment(userId, email) {
 // Check transaction status via Edge Function
 export async function checkTransaction(merchantRef) {
     try {
-        const { data, error } = await supabase.functions.invoke('tripay-payment/status', {
-            body: { reference: merchantRef }
+        // Get current session for auth
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (!session) {
+            return {
+                success: false,
+                error: 'User not authenticated',
+            };
+        }
+
+        const { data, error } = await supabase.functions.invoke('tripay-payment', {
+            body: { action: 'status', reference: merchantRef },
+            headers: {
+                Authorization: `Bearer ${session.access_token}`,
+            },
         });
 
         if (error) throw new Error(error.message);
